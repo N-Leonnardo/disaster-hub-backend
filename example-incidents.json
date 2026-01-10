@@ -1,0 +1,226 @@
+[
+  {
+    "_id": "65a1b2c3d4e5f6a7b8c9d0e1",
+    "type": "Power Outage",
+    "location": {
+      "type": "Point",
+      "coordinates": [-122.393868, 37.796240]
+    },
+    "description": "Hospital backup generator failing, 20 patients at risk.",
+    "needs": ["Generator", "Electrician"],
+    "status": "Triaged",
+    "dispatched": false,
+    "metadata": {
+      "source": "LoRa_Mesh",
+      "reliability_score": 0.85
+    }
+  },
+  {
+    "_id": "65a1b2c3d4e5f6a7b8c9d0e2",
+    "type": "Flood",
+    "location": {
+      "type": "Point",
+      "coordinates": [-122.395000, 37.797500]
+    },
+    "description": "Flash flooding in residential area, multiple homes affected. Water level rising rapidly.",
+    "needs": ["Sandbags", "Pumps", "Rescue Boats", "Emergency Shelter"],
+    "status": "Active",
+    "dispatched": false,
+    "metadata": {
+      "source": "Emergency Services",
+      "reliability_score": 0.95
+    }
+  },
+  {
+    "_id": "65a1b2c3d4e5f6a7b8c9d0e3",
+    "type": "Fire",
+    "location": {
+      "type": "Point",
+      "coordinates": [-122.392500, 37.795000]
+    },
+    "description": "Wildfire spreading near residential area. Evacuation in progress.",
+    "needs": ["Firefighters", "Water Trucks", "Helicopters", "Evacuation Buses"],
+    "status": "Active",
+    "dispatched": false,
+    "metadata": {
+      "source": "Fire Department",
+      "reliability_score": 0.98
+    }
+  },
+  {
+    "_id": "65a1b2c3d4e5f6a7b8c9d0e4",
+    "type": "Earthquake",
+    "location": {
+      "type": "Point",
+      "coordinates": [-122.394500, 37.796800]
+    },
+    "description": "Magnitude 5.2 earthquake. Structural damage reported in downtown area.",
+    "needs": ["Search and Rescue", "Structural Engineers", "Medical Supplies", "Temporary Housing"],
+    "status": "Active",
+    "dispatched": false,
+    "metadata": {
+      "source": "USGS",
+      "reliability_score": 1.0
+    }
+  },
+  {
+    "_id": "65a1b2c3d4e5f6a7b8c9d0e5",
+    "type": "Medical Emergency",
+    "location": {
+      "type": "Point",
+      "coordinates": [-122.393200, 37.797200]
+    },
+    "description": "Mass casualty incident at sports stadium. Multiple injuries reported.",
+    "needs": ["Ambulances", "Medical Personnel", "First Aid Supplies", "Triage Tents"],
+    "status": "Active",
+    "dispatched": false,
+    "metadata": {
+      "source": "911 Dispatch",
+      "reliability_score": 0.92
+    }
+  },
+  {
+    "_id": "65a1b2c3d4e5f6a7b8c9d0e6",
+    "type": "Chemical Spill",
+    "location": {
+      "type": "Point",
+      "coordinates": [-122.394200, 37.795500]
+    },
+    "description": "Hazardous material spill at industrial facility. Evacuation zone established.",
+    "needs": ["Hazmat Team", "Decontamination Equipment", "Protective Gear", "Air Quality Monitors"],
+    "status": "Active",
+    "dispatched": false,
+    "metadata": {
+      "source": "Environmental Agency",
+      "reliability_score": 0.88
+    }
+  },
+  {
+    "_id": "65a1b2c3d4e5f6a7b8c9d0e7",
+    "type": "Power Outage",
+    "location": {
+      "type": "Point",
+      "coordinates": [-122.393000, 37.796500]
+    },
+    "description": "Large-scale power outage affecting 5000+ homes. Estimated restoration in 4 hours.",
+    "needs": ["Power Crews", "Generators", "Communication Equipment"],
+    "status": "Triaged",
+    "dispatched": false,
+    "metadata": {
+      "source": "Power Company",
+      "reliability_score": 0.90
+    }
+  },
+  {
+    "_id": "65a1b2c3d4e5f6a7b8c9d0e8",
+    "type": "Bridge Collapse",
+    "location": {
+      "type": "Point",
+      "coordinates": [-122.394800, 37.797800]
+    },
+    "description": "Major bridge structural failure. Multiple vehicles trapped. Traffic rerouted.",
+    "needs": ["Rescue Teams", "Heavy Machinery", "Traffic Control", "Structural Assessment"],
+    "status": "Active",
+    "dispatched": false,
+    "metadata": {
+      "source": "Transportation Authority",
+      "reliability_score": 0.93
+    }
+  },
+  {
+    "_id": "65a1b2c3d4e5f6a7b8c9d0e9",
+    "type": "Tornado",
+    "location": {
+      "type": "Point",
+      "coordinates": [-122.393500, 37.795800]
+    },
+    "description": "Tornado touchdown reported. Significant property damage in path.",
+    "needs": ["Search and Rescue", "Debris Removal", "Temporary Shelter", "Insurance Assessors"],
+    "status": "Active",
+    "dispatched": false,
+    "metadata": {
+      "source": "National Weather Service",
+      "reliability_score": 0.87
+    }
+  },
+  {
+    "_id": "65a1b2c3d4e5f6a7b8c9d0ea",
+    "type": "Gas Leak",
+    "location": {
+      "type": "Point",
+      "coordinates": [-122.394000, 37.796600]
+    },
+    "description": "Natural gas leak detected in residential neighborhood. Immediate evacuation ordered.",
+    "needs": ["Gas Company Crews", "Evacuation Support", "Air Quality Monitoring", "Fire Department"],
+    "status": "Active",
+    "dispatched": false,
+    "metadata": {
+      "source": "Gas Utility",
+      "reliability_score": 0.91
+    }
+  },
+  {
+    "_id": "65a1b2c3d4e5f6a7b8c9d0eb",
+    "type": "Building Collapse",
+    "location": {
+      "type": "Point",
+      "coordinates": [-122.393880, 37.796234]
+    },
+    "description": "Partial building collapse at commercial complex. Multiple floors affected. Search and rescue operations underway.",
+    "needs": ["Search and Rescue", "Structural Engineers", "Heavy Machinery", "Medical Teams", "Cranes"],
+    "status": "Active",
+    "dispatched": false,
+    "metadata": {
+      "source": "Fire Department",
+      "reliability_score": 0.94
+    }
+  },
+  {
+    "_id": "65a1b2c3d4e5f6a7b8c9d0ec",
+    "type": "Traffic Accident",
+    "location": {
+      "type": "Point",
+      "coordinates": [-122.393650, 37.796450]
+    },
+    "description": "Multi-vehicle collision on major highway. Multiple injuries reported. Traffic backed up for 2 miles.",
+    "needs": ["Ambulances", "Traffic Control", "Tow Trucks", "Medical Personnel", "Police"],
+    "status": "Active",
+    "dispatched": false,
+    "metadata": {
+      "source": "Highway Patrol",
+      "reliability_score": 0.96
+    }
+  },
+  {
+    "_id": "65a1b2c3d4e5f6a7b8c9d0ed",
+    "type": "Water Main Break",
+    "location": {
+      "type": "Point",
+      "coordinates": [-122.394120, 37.796080]
+    },
+    "description": "Major water main rupture flooding streets. Water service disrupted to surrounding area. Road closure in effect.",
+    "needs": ["Water Department Crews", "Traffic Control", "Pumps", "Road Repair Equipment", "Water Trucks"],
+    "status": "Active",
+    "dispatched": false,
+    "metadata": {
+      "source": "Water Utility",
+      "reliability_score": 0.89
+    }
+  },
+  {
+    "_id": "65a1b2c3d4e5f6a7b8c9d0ee",
+    "type": "Landslide",
+    "location": {
+      "type": "Point",
+      "coordinates": [-122.393950, 37.796380]
+    },
+    "description": "Landslide on hillside threatening residential properties below. Evacuation recommended for safety zone.",
+    "needs": ["Geotechnical Engineers", "Heavy Machinery", "Evacuation Support", "Monitoring Equipment", "Barriers"],
+    "status": "Active",
+    "dispatched": false,
+    "metadata": {
+      "source": "Geological Survey",
+      "reliability_score": 0.86
+    }
+  }
+]

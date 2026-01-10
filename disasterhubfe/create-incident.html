@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Incident - Disaster Hub</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .header-nav {
+            margin-top: 0.5rem;
+            display: flex;
+            gap: 1rem;
+        }
+
+        .header-nav a {
+            color: white;
+            text-decoration: none;
+            opacity: 0.9;
+            transition: opacity 0.2s;
+        }
+
+        .header-nav a:hover {
+            opacity: 1;
+            text-decoration: underline;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 0 2rem;
+        }
+
+        .form-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .form-card h2 {
+            color: #1f2937;
+            margin-bottom: 1.5rem;
+            font-size: 1.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #374151;
+            font-weight: 500;
+            font-size: 0.875rem;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .needs-input {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .needs-input input {
+            flex: 1;
+        }
+
+        .needs-list {
+            margin-top: 0.5rem;
+        }
+
+        .needs-tag {
+            display: inline-block;
+            background: #e0e7ff;
+            color: #4338ca;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            margin: 0.25rem;
+            position: relative;
+            padding-right: 2rem;
+        }
+
+        .needs-tag .remove {
+            position: absolute;
+            right: 0.5rem;
+            cursor: pointer;
+            font-weight: bold;
+            color: #6366f1;
+        }
+
+        .needs-tag .remove:hover {
+            color: #4338ca;
+        }
+
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .btn-secondary {
+            background: #6b7280;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .alert {
+            padding: 1rem;
+            border-radius: 6px;
+            margin-bottom: 1.5rem;
+            display: none;
+        }
+
+        .alert.show {
+            display: block;
+        }
+
+        .alert-success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #10b981;
+        }
+
+        .alert-error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #ef4444;
+        }
+
+        .required {
+            color: #ef4444;
+        }
+
+        .help-text {
+            font-size: 0.75rem;
+            color: #6b7280;
+            margin-top: 0.25rem;
+        }
+
+        .metadata-section {
+            background: #f9fafb;
+            padding: 1rem;
+            border-radius: 6px;
+            margin-top: 1rem;
+        }
+
+        .metadata-section h3 {
+            font-size: 1rem;
+            color: #374151;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🗺️ Disaster Hub - Create Incident</h1>
+        <div class="header-nav">
+            <a href="index.html">← Back to Map</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="alert" id="alert"></div>
+
+        <div class="form-card">
+            <h2>Report an Incident</h2>
+            <p style="color: #6b7280; margin-bottom: 1.5rem;">
+                Simply describe the incident you're reporting. Our AI will automatically extract all the details including location, type, required resources, and more.
+            </p>
+            
+            <form id="incidentForm">
+                <div class="form-group">
+                    <label for="description">Describe the Incident <span class="required">*</span></label>
+                    <textarea 
+                        id="description" 
+                        name="description" 
+                        required 
+                        placeholder="Example: There's a fire at 123 Main Street in San Francisco. Multiple buildings are affected and we need firefighters, water trucks, and evacuation buses immediately. The fire started about 10 minutes ago and is spreading rapidly."
+                        style="min-height: 200px;"
+                    ></textarea>
+                    <div class="help-text">
+                        Include as much detail as possible: location (address or coordinates), type of incident, what's needed, current status, etc.
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="resetForm()">Clear</button>
+                    <button type="submit" class="btn btn-success" id="submitBtn">
+                        <span id="submitText">Create Incident</span>
+                        <span id="submitLoading" style="display: none;">Processing with AI...</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const BACKEND_HOST = window.location.hostname;
+        let BACKEND_PORT = '3000';
+        const currentPort = window.location.port;
+        
+        if (currentPort) {
+            BACKEND_PORT = currentPort;
+        } else {
+            BACKEND_PORT = '3000';
+        }
+        
+        const API_BASE_URL = `${window.location.protocol}//${BACKEND_HOST}:${BACKEND_PORT}`;
+        
+        console.log('🌐 Frontend Configuration:');
+        console.log('   API Base URL:', API_BASE_URL);
+
+        // State - simplified, no map needed for AI-powered creation
+
+        // Show alert message
+        function showAlert(message, type) {
+            const alert = document.getElementById('alert');
+            alert.textContent = message;
+            alert.className = `alert alert-${type} show`;
+            
+            setTimeout(() => {
+                alert.classList.remove('show');
+            }, 5000);
+        }
+
+        // Reset form
+        function resetForm() {
+            document.getElementById('incidentForm').reset();
+        }
+
+        // Handle form submission
+        document.getElementById('incidentForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const description = document.getElementById('description').value.trim();
+            
+            if (!description) {
+                showAlert('Please provide a description of the incident', 'error');
+                return;
+            }
+
+            // Show loading state
+            const submitBtn = document.getElementById('submitBtn');
+            const submitText = document.getElementById('submitText');
+            const submitLoading = document.getElementById('submitLoading');
+            
+            submitBtn.disabled = true;
+            submitText.style.display = 'none';
+            submitLoading.style.display = 'inline';
+
+            try {
+                console.log('[CreateIncident] Sending description to AI...');
+                const response = await fetch(`${API_BASE_URL}/api/incident/from-text`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ description })
+                });
+
+                const result = await response.json();
+                console.log('[CreateIncident] Response:', result);
+
+                if (response.ok && result.success) {
+                    showAlert('Incident created successfully! Redirecting to map...', 'success');
+                    setTimeout(() => {
+                        window.location.href = 'index.html';
+                    }, 2000);
+                } else {
+                    showAlert('Failed to create incident: ' + (result.error || 'Unknown error'), 'error');
+                    submitBtn.disabled = false;
+                    submitText.style.display = 'inline';
+                    submitLoading.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error creating incident:', error);
+                showAlert('Error creating incident: ' + error.message, 'error');
+                submitBtn.disabled = false;
+                submitText.style.display = 'inline';
+                submitLoading.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
