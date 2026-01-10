@@ -6,7 +6,7 @@ http://localhost:3000
 ```
 
 ## Overview
-The Disaster Hub API provides RESTful endpoints for managing disaster response resources including inventory, volunteers, incidents, and missions.
+The Disaster Hub API provides RESTful endpoints for managing disaster response resources including inventory, volunteers, incidents, and missions. The API also includes AI-powered incident creation using Fireworks.ai for natural language processing, real-time WebSocket updates, and comprehensive incident management with dispatch tracking.
 
 ## Table of Contents
 - [General Information](#general-information)
@@ -14,6 +14,7 @@ The Disaster Hub API provides RESTful endpoints for managing disaster response r
 - [Volunteer Endpoints](#volunteer-endpoints)
 - [Incident Endpoints](#incident-endpoints)
 - [Mission Endpoints](#mission-endpoints)
+- [WebSocket Updates](#websocket-updates)
 - [Other Endpoints](#other-endpoints)
 - [Response Format](#response-format)
 - [Error Handling](#error-handling)
@@ -430,6 +431,7 @@ Retrieve all incidents from the database.
       "description": "Hospital backup generator failing, 20 patients at risk.",
       "needs": ["Generator", "Electrician"],
       "status": "Triaged",
+      "dispatched": false,
       "metadata": {
         "source": "LoRa_Mesh",
         "reliability_score": 0.85
@@ -459,7 +461,7 @@ curl http://localhost:3000/api/incident/65a1b2c3d4e5f6a7b8c9d0e1
 ---
 
 ### Create New Incident
-Create a new incident record.
+Create a new incident record with structured data.
 
 **Endpoint:** `POST /api/incident`
 
@@ -475,12 +477,25 @@ Create a new incident record.
   "description": "Flash flooding in residential area, multiple homes affected.",
   "needs": ["Sandbags", "Pumps", "Rescue Boats"],
   "status": "Active",
+  "dispatched": false,
   "metadata": {
     "source": "Emergency Services",
     "reliability_score": 0.95
   }
 }
 ```
+
+**Required Fields:**
+- `type` - Type of incident (string)
+- `location` - GeoJSON Point with coordinates [longitude, latitude]
+- `description` - Detailed description of the incident (string)
+- `status` - Current status: "Active", "Triaged", or "Resolved" (string)
+- `dispatched` - Whether the incident has been dispatched (boolean, defaults to false)
+
+**Optional Fields:**
+- `_id` - Custom ID (string, auto-generated if not provided)
+- `needs` - Array of required resources/personnel (array of strings)
+- `metadata` - Additional metadata object with `source` and `reliability_score`
 
 **Example using cURL:**
 ```bash
@@ -489,25 +504,147 @@ curl -X POST http://localhost:3000/api/incident \
   -d '{
     "_id": "65a1b2c3d4e5f6a7b8c9d0e2",
     "type": "Flood",
+    "location": {
+      "type": "Point",
+      "coordinates": [-122.4000, 37.7700]
+    },
     "description": "Flash flooding in residential area",
-    "status": "Active"
+    "status": "Active",
+    "dispatched": false
   }'
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "_id": "65a1b2c3d4e5f6a7b8c9d0e2",
+    "type": "Flood",
+    "location": {
+      "type": "Point",
+      "coordinates": [-122.4000, 37.7700]
+    },
+    "description": "Flash flooding in residential area",
+    "needs": [],
+    "status": "Active",
+    "dispatched": false,
+    "metadata": {}
+  }
+}
 ```
 
 ---
 
-### Update Incident
-Update an existing incident record.
+### Create Incident from Natural Language (AI-Powered)
+Create a new incident by providing a natural language description. The AI will automatically extract structured information including type, location, description, needs, status, and metadata.
 
-**Endpoint:** `PUT /api/incident/:id`
+**Endpoint:** `POST /api/incident/from-text`
+
+**Request Body:**
+```json
+{
+  "description": "There's a fire at 123 Main Street in San Francisco. Multiple buildings are affected and we need firefighters, water trucks, and evacuation buses immediately. The fire started about 10 minutes ago and is spreading rapidly."
+}
+```
 
 **Example using cURL:**
 ```bash
+curl -X POST http://localhost:3000/api/incident/from-text \
+  -H "Content-Type: application/json" \
+  -d '{
+    "description": "There is a power outage at the hospital on Market Street. The backup generator is failing and 20 patients are at risk. We need an electrician and a generator immediately."
+  }'
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Incident created successfully from description",
+  "data": {
+    "_id": "65a1b2c3d4e5f6a7b8c9d0e3",
+    "type": "Power Outage",
+    "location": {
+      "type": "Point",
+      "coordinates": [-122.4194, 37.7749]
+    },
+    "description": "Power outage at the hospital on Market Street. The backup generator is failing and 20 patients are at risk.",
+    "needs": ["Electrician", "Generator"],
+    "status": "Active",
+    "dispatched": false,
+    "metadata": {
+      "source": "User Report",
+      "reliability_score": 0.85
+    }
+  }
+}
+```
+
+**AI Capabilities:**
+- Automatically extracts incident type from description
+- Infers location coordinates from addresses or landmarks
+- Identifies required resources and personnel from context
+- Determines appropriate status based on urgency
+- Estimates reliability score based on information quality
+- Extracts source information if mentioned
+
+**Tips for Best Results:**
+- Include specific location (address, landmark, or coordinates)
+- Mention what resources or personnel are needed
+- Describe the urgency and current situation
+- Include any relevant details about the incident
+
+---
+
+### Update Incident
+Update an existing incident record. You can update any field including the `dispatched` status.
+
+**Endpoint:** `PUT /api/incident/:id`
+
+**Parameters:**
+- `id` (path parameter) - The incident ID (string or MongoDB ObjectId)
+
+**Request Body:** (Only include fields you want to update)
+```json
+{
+  "status": "Resolved",
+  "dispatched": true
+}
+```
+
+**Special Behavior:**
+- When `dispatched` is set to `true`, the API automatically broadcasts a `reload` message to all WebSocket clients, prompting them to refresh their data.
+
+**Example using cURL:**
+```bash
+# Update incident status
 curl -X PUT http://localhost:3000/api/incident/65a1b2c3d4e5f6a7b8c9d0e1 \
   -H "Content-Type: application/json" \
   -d '{
     "status": "Resolved"
   }'
+
+# Dispatch an incident
+curl -X PUT http://localhost:3000/api/incident/65a1b2c3d4e5f6a7b8c9d0e1 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "dispatched": true
+  }'
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "_id": "65a1b2c3d4e5f6a7b8c9d0e1",
+    "type": "Power Outage",
+    "status": "Resolved",
+    "dispatched": true,
+    ...
+  }
+}
 ```
 
 ---
@@ -520,6 +657,109 @@ Delete an incident record by ID.
 **Example using cURL:**
 ```bash
 curl -X DELETE http://localhost:3000/api/incident/65a1b2c3d4e5f6a7b8c9d0e1
+```
+
+---
+
+## WebSocket Updates
+
+The Disaster Hub API provides real-time updates via WebSocket connections. All clients connected to the WebSocket server receive automatic notifications when incidents, volunteers, or missions are created, updated, or deleted.
+
+### WebSocket Connection
+
+**Endpoint:** `ws://localhost:3000/ws` (or `wss://` for HTTPS)
+
+**Connection Example (JavaScript):**
+```javascript
+const ws = new WebSocket('ws://localhost:3000/ws');
+
+ws.onopen = () => {
+  console.log('Connected to WebSocket server');
+};
+
+ws.onmessage = (event) => {
+  const data = JSON.parse(event.data);
+  console.log('Received update:', data);
+};
+```
+
+### WebSocket Message Types
+
+#### Incident Events
+
+**`incident_created`** - New incident created
+```json
+{
+  "type": "incident_created",
+  "data": {
+    "_id": "65a1b2c3d4e5f6a7b8c9d0e1",
+    "type": "Fire",
+    "location": { ... },
+    "description": "...",
+    "status": "Active",
+    "dispatched": false,
+    ...
+  }
+}
+```
+
+**`incident_updated`** - Incident updated
+```json
+{
+  "type": "incident_updated",
+  "data": {
+    "_id": "65a1b2c3d4e5f6a7b8c9d0e1",
+    "status": "Triaged",
+    "dispatched": true,
+    ...
+  }
+}
+```
+
+**`incident_deleted`** - Incident deleted
+```json
+{
+  "type": "incident_deleted",
+  "data": {
+    "_id": "65a1b2c3d4e5f6a7b8c9d0e1"
+  }
+}
+```
+
+#### Reload Event
+
+**`reload`** - Broadcast when clients should refresh their data
+```json
+{
+  "type": "reload",
+  "reload": true
+}
+```
+
+This message is automatically sent when an incident is dispatched (when `dispatched` is set to `true` via the update endpoint).
+
+#### Volunteer Events
+
+- `volunteer_created` - New volunteer added
+- `volunteer_updated` - Volunteer information updated
+- `volunteer_deleted` - Volunteer removed
+
+#### Mission Events
+
+- `mission_created` - New mission created
+- `mission_updated` - Mission status updated
+- `mission_deleted` - Mission deleted
+
+### Connection Status
+
+**`connected`** - Welcome message sent when client connects
+```json
+{
+  "type": "connected",
+  "message": "Connected to Disaster Hub WebSocket server",
+  "clientId": 1,
+  "timestamp": "2026-01-10T20:12:34.940Z"
+}
 ```
 
 ---
@@ -781,8 +1021,9 @@ All errors return a response with `success: false`:
 
 - `200 OK` - Request successful
 - `201 Created` - Resource created successfully
+- `400 Bad Request` - Invalid request data (e.g., missing required fields, invalid format)
 - `404 Not Found` - Resource not found
-- `500 Internal Server Error` - Server error occurred
+- `500 Internal Server Error` - Server error occurred (e.g., AI parsing failure, database error)
 - `503 Service Unavailable` - Database connection unavailable
 
 ### Common Error Scenarios
@@ -808,6 +1049,22 @@ All errors return a response with `success: false`:
 {
   "error": "Database not connected",
   "message": "MongoDB connection is not available"
+}
+```
+
+**Bad Request (400):**
+```json
+{
+  "success": false,
+  "error": "Description is required and must be a non-empty string"
+}
+```
+
+**AI Parsing Error (500):**
+```json
+{
+  "success": false,
+  "error": "Failed to parse incident: [AI error message]"
 }
 ```
 
@@ -875,11 +1132,14 @@ print(response.json())
 
 ## Notes
 
-- All IDs in the examples are strings. The API accepts both string IDs and MongoDB ObjectIds.
-- When updating resources, you only need to include the fields you want to change.
-- The API uses MongoDB's `disasterhub` database.
-- All timestamps are in ISO 8601 format (UTC).
-- Geographic coordinates follow the GeoJSON format: `[longitude, latitude]`.
+- **ID Format**: All IDs in the examples are strings. The API accepts both string IDs and MongoDB ObjectIds. The API automatically handles conversion between formats.
+- **Partial Updates**: When updating resources, you only need to include the fields you want to change.
+- **Database**: The API uses MongoDB's `disasterhub` database.
+- **Timestamps**: All timestamps are in ISO 8601 format (UTC).
+- **Coordinates**: Geographic coordinates follow the GeoJSON format: `[longitude, latitude]`.
+- **AI Integration**: The AI-powered incident creation uses Fireworks.ai's DeepSeek v3p1 model. Ensure `FIREWORKS_API_KEY` is set in your environment variables.
+- **WebSocket**: WebSocket connections are automatically established when using the frontend. All API operations broadcast updates to connected clients in real-time.
+- **Dispatch Feature**: When an incident's `dispatched` field is set to `true`, all connected WebSocket clients receive a reload message to refresh their data.
 
 ---
 

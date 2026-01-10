@@ -25,7 +25,8 @@ export async function parseIncidentDescription(description) {
           Extract all relevant details including incident type, location (latitude and longitude if mentioned, or estimate based on context),
           description, required resources/needs, status, and metadata. 
           If location is not provided, use default coordinates (37.7749, -122.4194) for San Francisco.
-          Always set dispatched to false.`
+          Always set dispatched to false.
+          Reply in JSON format matching the provided schema.`
         },
         {
           role: "user",
@@ -33,63 +34,66 @@ export async function parseIncidentDescription(description) {
         },
       ],
       response_format: {
-        type: "json_object",
+        type: "json_schema",
         json_schema: {
-          type: "object",
-          properties: {
-            type: {
-              type: "string",
-              description: "Type of incident (e.g., Power Outage, Flood, Fire, Earthquake, Medical Emergency, Chemical Spill, Bridge Collapse, Tornado, Gas Leak, Building Collapse, Traffic Accident, Water Main Break, Landslide, or Other)"
-            },
-            location: {
-              type: "object",
-              properties: {
-                type: { type: "string", enum: ["Point"] },
-                coordinates: {
-                  type: "array",
-                  items: { type: "number" },
-                  minItems: 2,
-                  maxItems: 2,
-                  description: "Longitude and latitude [lng, lat] in GeoJSON format"
-                }
+          name: "incident",
+          schema: {
+            type: "object",
+            properties: {
+              type: {
+                type: "string",
+                description: "Type of incident (e.g., Power Outage, Flood, Fire, Earthquake, Medical Emergency, Chemical Spill, Bridge Collapse, Tornado, Gas Leak, Building Collapse, Traffic Accident, Water Main Break, Landslide, or Other)"
               },
-              required: ["type", "coordinates"]
-            },
-            description: {
-              type: "string",
-              description: "Detailed description of the incident"
-            },
-            needs: {
-              type: "array",
-              items: { type: "string" },
-              description: "List of required resources, personnel, or equipment needed"
-            },
-            status: {
-              type: "string",
-              enum: ["Active", "Triaged", "Resolved"],
-              description: "Current status of the incident"
-            },
-            dispatched: {
-              type: "boolean",
-              description: "Whether the incident has been dispatched (always false for new incidents)"
-            },
-            metadata: {
-              type: "object",
-              properties: {
-                source: {
-                  type: "string",
-                  description: "Source of the incident report (e.g., Emergency Services, 911 Dispatch, LoRa_Mesh, Fire Department)"
+              location: {
+                type: "object",
+                properties: {
+                  type: { type: "string", enum: ["Point"] },
+                  coordinates: {
+                    type: "array",
+                    items: { type: "number" },
+                    minItems: 2,
+                    maxItems: 2,
+                    description: "Longitude and latitude [lng, lat] in GeoJSON format"
+                  }
                 },
-                reliability_score: {
-                  type: "number",
-                  minimum: 0,
-                  maximum: 1,
-                  description: "Reliability score of the report (0.0 to 1.0)"
+                required: ["type", "coordinates"]
+              },
+              description: {
+                type: "string",
+                description: "Detailed description of the incident"
+              },
+              needs: {
+                type: "array",
+                items: { type: "string" },
+                description: "List of required resources, personnel, or equipment needed"
+              },
+              status: {
+                type: "string",
+                enum: ["Active", "Triaged", "Resolved"],
+                description: "Current status of the incident"
+              },
+              dispatched: {
+                type: "boolean",
+                description: "Whether the incident has been dispatched (always false for new incidents)"
+              },
+              metadata: {
+                type: "object",
+                properties: {
+                  source: {
+                    type: "string",
+                    description: "Source of the incident report (e.g., Emergency Services, 911 Dispatch, LoRa_Mesh, Fire Department)"
+                  },
+                  reliability_score: {
+                    type: "number",
+                    minimum: 0,
+                    maximum: 1,
+                    description: "Reliability score of the report (0.0 to 1.0)"
+                  }
                 }
               }
-            }
-          },
-          required: ["type", "location", "description", "status", "dispatched"]
+            },
+            required: ["type", "location", "description", "status", "dispatched"]
+          }
         },
       },
     });
