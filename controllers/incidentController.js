@@ -1,6 +1,7 @@
 import { getCollection } from '../services/database.js';
 import { broadcastToClients } from '../services/websocket.js';
 import { parseIncidentDescription } from '../services/aiService.js';
+import { handleIncidentDispatch } from '../services/missionAgent.js';
 import { ObjectId } from 'mongodb';
 
 const collection = getCollection('incident');
@@ -83,6 +84,12 @@ export const createIncident = async (req, res) => {
       data: newIncident
     });
 
+    // Send reload message to refresh all data
+    broadcastToClients({
+      type: 'reload',
+      reload: true
+    });
+
     res.status(201).json({
       success: true,
       data: newIncident
@@ -107,9 +114,12 @@ export const createIncidentFromText = async (req, res) => {
     }
 
     console.log('[CreateIncidentFromText] Parsing description with AI...');
+    if (userLocation) {
+      console.log('[CreateIncidentFromText] User location provided:', userLocation);
+    }
 
     // Parse the natural language description using AI
-    const incidentData = await parseIncidentDescription(description);
+    const incidentData = await parseIncidentDescription(description, userLocation);
 
     console.log('[CreateIncidentFromText] Parsed incident data:', JSON.stringify(incidentData, null, 2));
 
@@ -121,6 +131,12 @@ export const createIncidentFromText = async (req, res) => {
     broadcastToClients({
       type: 'incident_created',
       data: newIncident
+    });
+
+    // Send reload message to refresh all data
+    broadcastToClients({
+      type: 'reload',
+      reload: true
     });
 
     res.status(201).json({
@@ -144,6 +160,17 @@ export const updateIncident = async (req, res) => {
 
     const objectId = convertToObjectId(id);
     console.log(`[UpdateIncident] Converted ID: ${objectId} (type: ${typeof objectId}, isObjectId: ${objectId instanceof ObjectId})`);
+
+    // Get previous state to check if incident was just dispatched
+    let previousIncident = null;
+    try {
+      previousIncident = await collection.findOne({ _id: objectId });
+      if (!previousIncident && objectId !== id) {
+        previousIncident = await collection.findOne({ _id: id });
+      }
+    } catch (error) {
+      console.warn('[UpdateIncident] Could not fetch previous incident state:', error);
+    }
 
     let updatedIncident = null;
 
@@ -214,67 +241,40 @@ export const updateIncident = async (req, res) => {
       data: updatedIncident
     });
 
-    // If dispatched field was set to true, handle mission creation
+    // If dispatched field was set to true, trigger mission creation
     if (req.body.dispatched === true) {
-      console.log(`[UpdateIncident] Incident dispatched, creating mission...`);
+      console.log('[UpdateIncident] ========================================');
+      console.log('[UpdateIncident] Dispatch detected! req.body.dispatched === true');
+      console.log('[UpdateIncident] Updated incident dispatched status:', updatedIncident.dispatched);
+      console.log('[UpdateIncident] Previous incident dispatched status:', previousIncident?.dispatched);
+      console.log('[UpdateIncident] Calling handleIncidentDispatch...');
 
-      const missionCollection = getCollection('mission');
-      const volunteerCollection = getCollection('volunteer');
-
-      // 1. Find an available volunteer
-      const volunteer = await volunteerCollection.findOne({ status: 'idle' });
-
-      if (volunteer) {
-        console.log(`[UpdateIncident] Found authorized unit: ${volunteer.name}`);
-
-        // 2. Create Mission
-        const newMission = {
-          incident_id: updatedIncident._id, // Store ObjectId references directly if possible, or string? 
-          // The frontend expects populated objects. 
-          // The aggregation pipeline might need consistent types.
-          // Existing data seems to use strings occasionally? 
-          // Safest is to use the same type as the customized `_id`. 
-          // updatedIncident._id is what we just used.
-          volunteer_id: volunteer._id,
-          status: 'active',
-          priority: 'high',
-          created_at: new Date(),
-          plan_details: `Respond to ${updatedIncident.type || 'Incident'} at ${updatedIncident.location?.coordinates?.join(', ') || 'Sector 7'}`
-        };
-
-        const missionResult = await missionCollection.insertOne(newMission);
-        const createdMission = await missionCollection.findOne({ _id: missionResult.insertedId });
-
-        // 3. Update Volunteer Status
-        await volunteerCollection.updateOne(
-          { _id: volunteer._id },
-          { $set: { status: 'mission', current_mission_id: createdMission._id } }
-        );
-
-        // 4. Update Incident to link mission (optional but good for bi-directional)
-        // Note: we just updated the incident, but maybe we want to store mission_id?
-        // Skipped for now to avoid complexity, the link is established via mission.incident_id
-
-        // Broadcast Mission Creation
-        broadcastToClients({
-          type: 'mission_created',
-          data: createdMission
-        });
-
-        // Broadcast Volunteer Update
-        broadcastToClients({
-          type: 'volunteer_updated',
-          data: { ...volunteer, status: 'mission', current_mission_id: createdMission._id }
-        });
-
-      } else {
-        console.log(`[UpdateIncident] WARNING: No idle volunteers found for dispatch.`);
+      try {
+        // Create missions for the dispatched incident
+        const missions = await handleIncidentDispatch(updatedIncident, previousIncident);
+        console.log(`[UpdateIncident] ✅ handleIncidentDispatch returned ${missions.length} missions`);
+        if (missions.length > 0) {
+          console.log('[UpdateIncident] Mission IDs:', missions.map(m => m._id));
+        } else {
+          console.log('[UpdateIncident] ⚠️  No missions were created');
+        }
+      } catch (error) {
+        console.error('[UpdateIncident] ❌ ERROR creating missions:', error);
+        console.error('[UpdateIncident] Error message:', error.message);
+        console.error('[UpdateIncident] Error stack:', error.stack);
+        // Don't fail the request if mission creation fails
       }
 
+      // Send reload message to refresh all data
+      console.log('[UpdateIncident] Broadcasting reload message...');
       broadcastToClients({
         type: 'reload',
         reload: true
       });
+      console.log('[UpdateIncident] Reload message broadcast complete');
+      console.log('[UpdateIncident] ========================================');
+    } else {
+      console.log('[UpdateIncident] Dispatch not detected. req.body.dispatched:', req.body.dispatched);
     }
 
     res.json({

@@ -189,6 +189,104 @@
             margin-top: 0.25rem;
         }
 
+        .incidents-list {
+            margin-top: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .incidents-list h3 {
+            font-size: 0.875rem;
+            color: #6b7280;
+            margin-bottom: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .incident-item {
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            background: #f9fafb;
+            border-left: 3px solid #ef4444;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .incident-item:hover {
+            background: #f3f4f6;
+            transform: translateX(4px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .incident-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.25rem;
+        }
+
+        .incident-item-type {
+            font-weight: 600;
+            color: #1f2937;
+            font-size: 0.875rem;
+        }
+
+        .incident-item-status {
+            font-size: 0.75rem;
+            padding: 0.125rem 0.5rem;
+            border-radius: 12px;
+            font-weight: 500;
+        }
+
+        .incident-item-status.active {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .incident-item-status.triaged {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .incident-item-status.resolved {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .incident-item-dispatched {
+            font-size: 0.75rem;
+            color: #10b981;
+            font-weight: 500;
+            margin-top: 0.25rem;
+        }
+
+        .incident-item-description {
+            font-size: 0.75rem;
+            color: #6b7280;
+            margin-top: 0.25rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .incident-item-needs {
+            font-size: 0.75rem;
+            color: #4b5563;
+            margin-top: 0.5rem;
+        }
+
+        .incident-item-needs span {
+            display: inline-block;
+            background: #e0e7ff;
+            color: #4338ca;
+            padding: 0.125rem 0.5rem;
+            border-radius: 12px;
+            margin-right: 0.25rem;
+            margin-top: 0.25rem;
+            font-size: 0.7rem;
+        }
+
         .activity-log {
             margin-top: 1.5rem;
         }
@@ -443,6 +541,13 @@
                     </div>
                 </div>
 
+                <div class="incidents-list">
+                    <h3>All Incidents</h3>
+                    <div id="incidentsListContainer">
+                        <p style="color: #6b7280; font-size: 0.875rem; padding: 0.5rem;">Loading incidents...</p>
+                    </div>
+                </div>
+
                 <div class="activity-log">
                     <h3>Activity Log</h3>
                     <div id="activityLog"></div>
@@ -497,6 +602,9 @@
         };
         let incidentData = new Map(); // Store full incident data with markers
         let incidentInfoWindows = new Map(); // Store InfoWindows for incidents
+        let missionData = new Map(); // Store mission data by mission ID
+        let missionsByIncident = new Map(); // Store missions by incident ID
+        let currentlyOpenInfoWindow = null; // Track the currently open InfoWindow
         let userLocationMarker = null;
         let userLocation = null;
         let ws;
@@ -556,6 +664,7 @@
                         incidents.data.forEach(incident => addIncidentMarker(incident));
                         stats.incidents = incidents.data.length;
                         console.log(`✅ Loaded ${incidents.data.length} incidents`);
+                        updateIncidentsList(incidents.data);
                     }
                 }
 
@@ -566,9 +675,24 @@
                 } else {
                     const missions = await missionsRes.json();
                     if (missions.success && missions.data) {
-                        missions.data.forEach(mission => addMissionMarker(mission));
+                        missions.data.forEach(mission => {
+                            // Don't add mission markers to map - missions only shown in incident InfoWindow
+                            // addMissionMarker(mission);
+                            missionData.set(mission._id, mission);
+                            // Group missions by incident_id (check for duplicates)
+                            const incidentId = String(mission.incident_id);
+                            if (!missionsByIncident.has(incidentId)) {
+                                missionsByIncident.set(incidentId, []);
+                            }
+                            // Check if mission already exists before adding
+                            const existingMissions = missionsByIncident.get(incidentId);
+                            const missionExists = existingMissions.some(m => m._id === mission._id);
+                            if (!missionExists) {
+                                missionsByIncident.get(incidentId).push(mission);
+                            }
+                        });
                         stats.missions = missions.data.length;
-                        console.log(`✅ Loaded ${missions.data.length} missions`);
+                        console.log(`✅ Loaded ${missions.data.length} missions (not displayed as map markers)`);
                     }
                 }
 
@@ -672,18 +796,21 @@
                     addIncidentMarker(data.data);
                     stats.incidents++;
                     addActivityLog(`New incident created: ${data.data.type || data.data._id}`, 'incident');
+                    refreshIncidentsList();
                     break;
                 case 'incident_updated':
                     // Update stored incident data
                     incidentData.set(data.data._id, data.data);
                     updateIncidentMarker(data.data);
                     addActivityLog(`Incident updated: ${data.data.type || data.data._id}`, 'incident');
+                    refreshIncidentsList();
                     break;
                 case 'incident_deleted':
                     removeIncidentMarker(data.data._id);
                     incidentData.delete(data.data._id);
                     stats.incidents--;
                     addActivityLog(`Incident deleted`, 'incident');
+                    refreshIncidentsList();
                     break;
                 case 'volunteer_created':
                     addVolunteerMarker(data.data);
@@ -700,16 +827,83 @@
                     addActivityLog(`Volunteer removed`, 'volunteer');
                     break;
                 case 'mission_created':
-                    addMissionMarker(data.data);
+                    // Don't add mission markers to map - missions only shown in incident InfoWindow
+                    // addMissionMarker(data.data);
+                    missionData.set(data.data._id, data.data);
+                    // Add to missionsByIncident cache (check for duplicates)
+                    const incidentId = String(data.data.incident_id);
+                    if (!missionsByIncident.has(incidentId)) {
+                        missionsByIncident.set(incidentId, []);
+                    }
+                    // Check if mission already exists before adding
+                    const existingMissions = missionsByIncident.get(incidentId);
+                    const missionExists = existingMissions.some(m => m._id === data.data._id);
+                    if (!missionExists) {
+                        missionsByIncident.get(incidentId).push(data.data);
+                    }
                     stats.missions++;
+                    
+                    // Update incident InfoWindow if it's open to show new mission
+                    const incidentInfoWindow = incidentInfoWindows.get(incidentId);
+                    if (incidentInfoWindow && currentlyOpenInfoWindow === incidentInfoWindow) {
+                        const incident = incidentData.get(incidentId);
+                        if (incident) {
+                            const missions = missionsByIncident.get(incidentId) || [];
+                            incidentInfoWindow.setContent(createIncidentInfoWindowContent(incident, missions));
+                        }
+                    }
+                    
                     addActivityLog(`New mission created: ${data.data.name || data.data._id}`, 'mission');
                     break;
                 case 'mission_updated':
-                    updateMissionMarker(data.data);
+                    // Don't update mission markers on map - missions only shown in incident InfoWindow
+                    // updateMissionMarker(data.data);
+                    missionData.set(data.data._id, data.data);
+                    // Update missionsByIncident cache
+                    const updatedIncidentId = String(data.data.incident_id);
+                    if (missionsByIncident.has(updatedIncidentId)) {
+                        const missions = missionsByIncident.get(updatedIncidentId);
+                        const index = missions.findIndex(m => m._id === data.data._id);
+                        if (index !== -1) {
+                            missions[index] = data.data;
+                        }
+                    }
+                    
+                    // Update incident InfoWindow if it's open to show updated mission
+                    const updatedIncidentInfoWindow = incidentInfoWindows.get(updatedIncidentId);
+                    if (updatedIncidentInfoWindow && currentlyOpenInfoWindow === updatedIncidentInfoWindow) {
+                        const incident = incidentData.get(updatedIncidentId);
+                        if (incident) {
+                            const missions = missionsByIncident.get(updatedIncidentId) || [];
+                            updatedIncidentInfoWindow.setContent(createIncidentInfoWindowContent(incident, missions));
+                        }
+                    }
+                    
                     addActivityLog(`Mission updated: ${data.data.name || data.data._id}`, 'mission');
                     break;
                 case 'mission_deleted':
-                    removeMissionMarker(data.data._id);
+                    // Don't remove mission markers from map - missions only shown in incident InfoWindow
+                    // removeMissionMarker(data.data._id);
+                    missionData.delete(data.data._id);
+                    const deletedIncidentId = String(data.data.incident_id);
+                    if (missionsByIncident.has(deletedIncidentId)) {
+                        const missions = missionsByIncident.get(deletedIncidentId);
+                        const index = missions.findIndex(m => m._id === data.data._id);
+                        if (index !== -1) {
+                            missions.splice(index, 1);
+                        }
+                    }
+                    
+                    // Update incident InfoWindow if it's open to reflect deleted mission
+                    const deletedIncidentInfoWindow = incidentInfoWindows.get(deletedIncidentId);
+                    if (deletedIncidentInfoWindow && currentlyOpenInfoWindow === deletedIncidentInfoWindow) {
+                        const incident = incidentData.get(deletedIncidentId);
+                        if (incident) {
+                            const missions = missionsByIncident.get(deletedIncidentId) || [];
+                            deletedIncidentInfoWindow.setContent(createIncidentInfoWindowContent(incident, missions));
+                        }
+                    }
+                    
                     stats.missions--;
                     addActivityLog(`Mission deleted`, 'mission');
                     break;
@@ -718,10 +912,11 @@
                     break;
                 case 'reload':
                     if (data.reload === true) {
-                        addActivityLog('Reloading data...', 'info');
-                        // Reload all data
-                        loadInitialData();
-                        fetchAllVolunteers();
+                        addActivityLog('Reloading all data from backend...', 'info');
+                        // Clear all existing markers and data
+                        clearAllMarkers();
+                        // Reload all data from backend
+                        reloadAllData();
                     }
                     break;
             }
@@ -777,7 +972,7 @@
             });
 
             const infoWindow = new google.maps.InfoWindow({
-                content: createIncidentInfoWindowContent(incident)
+                content: createIncidentInfoWindowContent(incident, [])
             });
             
             // Store info window
@@ -800,20 +995,90 @@
                 }
             });
 
-            marker.addListener('click', () => {
-                // Update content in case incident data changed
-                const currentIncident = incidentData.get(incident._id);
-                if (currentIncident) {
-                    infoWindow.setContent(createIncidentInfoWindowContent(currentIncident));
+            marker.addListener('click', async () => {
+                try {
+                    // Close any currently open InfoWindow
+                    if (currentlyOpenInfoWindow) {
+                        currentlyOpenInfoWindow.close();
+                    }
+                    
+                    // Update content in case incident data changed
+                    const currentIncident = incidentData.get(incident._id) || incident;
+                    
+                    // Fetch missions for this incident
+                    let missions = [];
+                    try {
+                        missions = await fetchMissionsForIncident(incident._id);
+                    } catch (error) {
+                        console.error('Error fetching missions:', error);
+                        // Continue with empty missions array
+                    }
+                    
+                    infoWindow.setContent(createIncidentInfoWindowContent(currentIncident, missions));
+                    infoWindow.open(map, marker);
+                    currentlyOpenInfoWindow = infoWindow;
+                } catch (error) {
+                    console.error('Error opening incident InfoWindow:', error);
+                    // Fallback: open with basic content
+                    infoWindow.setContent(createIncidentInfoWindowContent(incident, []));
+                    infoWindow.open(map, marker);
+                    currentlyOpenInfoWindow = infoWindow;
                 }
-                infoWindow.open(map, marker);
             });
 
             markers.incidents.set(incident._id, marker);
         }
 
-        // Create incident info window content with dispatch button
-        function createIncidentInfoWindowContent(incident) {
+        // Fetch missions for a specific incident
+        async function fetchMissionsForIncident(incidentId) {
+            const incidentIdStr = String(incidentId);
+            
+            // First check cached missions
+            if (missionsByIncident.has(incidentIdStr)) {
+                const cachedMissions = missionsByIncident.get(incidentIdStr);
+                // Remove duplicates before returning
+                const uniqueMissions = Array.from(new Map(cachedMissions.map(m => [m._id, m])).values());
+                return uniqueMissions;
+            }
+            
+            // If not cached, fetch from API
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/mission`);
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success && result.data) {
+                        // Clear and rebuild cache to avoid duplicates
+                        const missionMap = new Map(); // Use Map to track unique missions by _id
+                        
+                        result.data.forEach(mission => {
+                            missionData.set(mission._id, mission);
+                            const id = String(mission.incident_id);
+                            
+                            // Use Map to ensure uniqueness
+                            if (!missionMap.has(id)) {
+                                missionMap.set(id, new Map());
+                            }
+                            // Store by mission _id to prevent duplicates
+                            missionMap.get(id).set(mission._id, mission);
+                        });
+                        
+                        // Convert Maps back to arrays and update cache
+                        missionMap.forEach((missionIdMap, id) => {
+                            missionsByIncident.set(id, Array.from(missionIdMap.values()));
+                        });
+                        
+                        return missionsByIncident.get(incidentIdStr) || [];
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching missions:', error);
+            }
+            
+            return [];
+        }
+
+        // Create incident info window content with dispatch button and missions
+        function createIncidentInfoWindowContent(incident, missions = []) {
             const needsList = incident.needs && incident.needs.length > 0 
                 ? incident.needs.map(need => `<li>${need}</li>`).join('')
                 : '<li>None specified</li>';
@@ -839,9 +1104,42 @@
                 </button>` : 
                 '<p style="margin-top: 10px; color: #10b981; font-weight: 600;">✓ Already Dispatched</p>';
 
+            // Build missions list (remove duplicates first)
+            let missionsHtml = '';
+            if (missions && missions.length > 0) {
+                // Remove duplicates by mission _id
+                const uniqueMissions = Array.from(
+                    new Map(missions.map(mission => [mission._id, mission])).values()
+                );
+                
+                missionsHtml = `
+                    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
+                        <p style="margin: 0 0 10px 0; font-weight: 600; color: #1f2937;"><strong>Missions (${uniqueMissions.length}):</strong></p>
+                        <div style="max-height: 200px; overflow-y: auto;">
+                            ${uniqueMissions.map(mission => `
+                                <div style="margin-bottom: 10px; padding: 10px; background: #f9fafb; border-radius: 6px; border-left: 3px solid #667eea;">
+                                    <p style="margin: 0 0 5px 0; font-weight: 600; color: #1f2937; font-size: 0.9em;">${mission.name || 'Mission'}</p>
+                                    <p style="margin: 0 0 5px 0; color: #6b7280; font-size: 0.85em;">${mission.description || 'No description'}</p>
+                                    <div style="display: flex; gap: 10px; font-size: 0.8em; color: #9ca3af;">
+                                        <span><strong>Status:</strong> ${mission.status || 'N/A'}</span>
+                                        <span><strong>Priority:</strong> ${mission.priority || 'N/A'}</span>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            } else if (incident.dispatched) {
+                missionsHtml = `
+                    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
+                        <p style="margin: 0; color: #9ca3af; font-size: 0.9em;">No missions created yet for this incident.</p>
+                    </div>
+                `;
+            }
+
             return `
-                <div style="padding: 15px; min-width: 300px; max-width: 400px;">
-                    <h3 style="margin: 0 0 15px 0; color: #ef4444; font-size: 1.2rem; border-bottom: 2px solid #ef4444; padding-bottom: 8px;">
+                <div style="padding: 15px; min-width: 300px; max-width: 400px; max-height: 600px; overflow-y: auto;">
+                    <h3 style="margin: 0 0 15px 0; color: #1f2937; font-size: 1.2em; border-bottom: 2px solid #667eea; padding-bottom: 8px;">
                         ${incident.type || 'Incident'}
                     </h3>
                     <div style="margin-bottom: 10px;">
@@ -859,6 +1157,7 @@
                         </ul>
                     </div>
                     ${dispatchButton}
+                    ${missionsHtml}
                 </div>
             `;
         }
@@ -899,7 +1198,9 @@
                     // Update the marker's info window if it exists
                     const infoWindow = incidentInfoWindows.get(incidentId);
                     if (infoWindow) {
-                        infoWindow.setContent(createIncidentInfoWindowContent(incident));
+                        // Fetch missions for updated incident
+                        const missions = await fetchMissionsForIncident(incidentId);
+                        infoWindow.setContent(createIncidentInfoWindowContent(incident, missions));
                     }
                     
                     addActivityLog(`Incident dispatched: ${incident?.type || incidentId}`, 'success');
@@ -944,48 +1245,23 @@
             });
 
             marker.addListener('click', () => {
+                // Close any currently open InfoWindow
+                if (currentlyOpenInfoWindow) {
+                    currentlyOpenInfoWindow.close();
+                }
                 infoWindow.open(map, marker);
+                currentlyOpenInfoWindow = infoWindow;
             });
 
             markers.volunteers.set(volunteer._id, marker);
         }
 
+        // Mission markers are no longer displayed on the map
+        // Missions are only shown in the incident InfoWindow when clicking on an incident
         function addMissionMarker(mission) {
-            const coords = getLocationCoordinates(mission.location);
-            if (!coords) {
-                return;
-            }
-
-            const marker = new google.maps.Marker({
-                position: coords,
-                map: map,
-                icon: {
-                    path: google.maps.SymbolPath.CIRCLE,
-                    scale: 10,
-                    fillColor: '#10b981',
-                    fillOpacity: 1,
-                    strokeColor: '#ffffff',
-                    strokeWeight: 2
-                },
-                title: mission.name || 'Mission'
-            });
-
-            const infoWindow = new google.maps.InfoWindow({
-                content: `
-                    <div style="padding: 10px;">
-                        <h3 style="margin: 0 0 10px 0; color: #10b981;">${mission.name || 'Mission'}</h3>
-                        <p style="margin: 5px 0;"><strong>Status:</strong> ${mission.status || 'N/A'}</p>
-                        <p style="margin: 5px 0;"><strong>Priority:</strong> ${mission.priority || 'N/A'}</p>
-                        <p style="margin: 5px 0;"><strong>Description:</strong> ${mission.description || 'N/A'}</p>
-                    </div>
-                `
-            });
-
-            marker.addListener('click', () => {
-                infoWindow.open(map, marker);
-            });
-
-            markers.missions.set(mission._id, marker);
+            // Disabled - missions are not displayed as map markers
+            // They are only shown in the incident InfoWindow
+            return;
         }
 
         function updateIncidentMarker(incident) {
@@ -1016,14 +1292,15 @@
             }
         }
 
+        // Mission markers are no longer displayed on the map
         function updateMissionMarker(mission) {
-            const marker = markers.missions.get(mission._id);
-            const coords = getLocationCoordinates(mission.location);
-            if (marker && coords) {
-                marker.setPosition(coords);
-            } else if (!marker && coords) {
-                addMissionMarker(mission);
-            }
+            // Disabled - missions are not displayed as map markers
+            return;
+        }
+
+        function removeMissionMarker(id) {
+            // Disabled - missions are not displayed as map markers
+            return;
         }
 
         function removeIncidentMarker(id) {
@@ -1044,11 +1321,128 @@
             }
         }
 
-        function removeMissionMarker(id) {
-            const marker = markers.missions.get(id);
-            if (marker) {
+        // Mission markers are no longer displayed on the map
+        // This function is kept for compatibility but does nothing
+
+        // Clear all markers from the map
+        function clearAllMarkers() {
+            console.log('[Reload] Clearing all markers...');
+            
+            // Clear incident markers
+            markers.incidents.forEach((marker) => {
                 marker.setMap(null);
-                markers.missions.delete(id);
+            });
+            markers.incidents.clear();
+            incidentData.clear();
+            incidentInfoWindows.clear();
+            
+            // Clear volunteer markers
+            markers.volunteers.forEach((marker) => {
+                marker.setMap(null);
+            });
+            markers.volunteers.clear();
+            
+            // Clear mission markers (if any exist)
+            markers.missions.forEach((marker) => {
+                marker.setMap(null);
+            });
+            markers.missions.clear();
+            // Keep mission data for InfoWindow display, just clear markers
+            // missionData.clear();
+            // missionsByIncident.clear();
+            
+            // Close any open InfoWindow
+            if (currentlyOpenInfoWindow) {
+                currentlyOpenInfoWindow.close();
+                currentlyOpenInfoWindow = null;
+            }
+            
+            // Reset stats
+            stats.incidents = 0;
+            stats.volunteers = 0;
+            stats.missions = 0;
+            updateStats();
+            
+            console.log('[Reload] All markers cleared');
+        }
+
+        // Reload all data from backend
+        async function reloadAllData() {
+            try {
+                console.log('[Reload] Fetching all data from backend...');
+                
+                // Fetch incidents, missions, and volunteers in parallel
+                const [incidentsRes, missionsRes, volunteersRes] = await Promise.all([
+                    fetch(`${API_BASE_URL}/api/incident`),
+                    fetch(`${API_BASE_URL}/api/mission`),
+                    fetch(`${API_BASE_URL}/api/volunteer`)
+                ]);
+
+                // Process incidents
+                if (incidentsRes.ok) {
+                    const incidents = await incidentsRes.json();
+                    if (incidents.success && incidents.data) {
+                        incidents.data.forEach(incident => addIncidentMarker(incident));
+                        stats.incidents = incidents.data.length;
+                        updateIncidentsList(incidents.data);
+                        console.log(`[Reload] ✅ Loaded ${incidents.data.length} incidents`);
+                    }
+                } else {
+                    console.error(`[Reload] Failed to fetch incidents: ${incidentsRes.status}`);
+                }
+
+                // Process missions
+                if (missionsRes.ok) {
+                    const missions = await missionsRes.json();
+                    if (missions.success && missions.data) {
+                        missions.data.forEach(mission => {
+                            // Don't add mission markers to map - missions only shown in incident InfoWindow
+                            // addMissionMarker(mission);
+                            missionData.set(mission._id, mission);
+                            // Group missions by incident_id (check for duplicates)
+                            const incidentId = String(mission.incident_id);
+                            if (!missionsByIncident.has(incidentId)) {
+                                missionsByIncident.set(incidentId, []);
+                            }
+                            // Check if mission already exists before adding
+                            const existingMissions = missionsByIncident.get(incidentId);
+                            const missionExists = existingMissions.some(m => m._id === mission._id);
+                            if (!missionExists) {
+                                missionsByIncident.get(incidentId).push(mission);
+                            }
+                        });
+                        stats.missions = missions.data.length;
+                        console.log(`[Reload] ✅ Loaded ${missions.data.length} missions`);
+                    }
+                } else {
+                    console.error(`[Reload] Failed to fetch missions: ${missionsRes.status}`);
+                }
+
+                // Process volunteers
+                if (volunteersRes.ok) {
+                    const volunteers = await volunteersRes.json();
+                    if (volunteers.success && volunteers.data) {
+                        let addedCount = 0;
+                        volunteers.data.forEach(volunteer => {
+                            const coords = getLocationCoordinates(volunteer.location);
+                            if (coords) {
+                                addVolunteerMarker(volunteer);
+                                addedCount++;
+                            }
+                        });
+                        stats.volunteers = volunteers.data.length;
+                        console.log(`[Reload] ✅ Loaded ${addedCount} volunteers`);
+                    }
+                } else {
+                    console.error(`[Reload] Failed to fetch volunteers: ${volunteersRes.status}`);
+                }
+
+                updateStats();
+                addActivityLog('All data reloaded from backend', 'success');
+                console.log('[Reload] ✅ All data reloaded successfully');
+            } catch (error) {
+                console.error('[Reload] Error reloading data:', error);
+                addActivityLog(`Error reloading data: ${error.message}`, 'error');
             }
         }
 
@@ -1059,6 +1453,122 @@
             document.getElementById('missionCount').textContent = stats.missions;
             document.getElementById('totalCount').textContent = stats.incidents + stats.volunteers + stats.missions;
         }
+
+        // Update incidents list in sidebar
+        function updateIncidentsList(incidents) {
+            const container = document.getElementById('incidentsListContainer');
+            
+            if (!incidents || incidents.length === 0) {
+                container.innerHTML = '<p style="color: #6b7280; font-size: 0.875rem; padding: 0.5rem;">No incidents found</p>';
+                return;
+            }
+
+            container.innerHTML = incidents.map(incident => {
+                const coords = getLocationCoordinates(incident.location);
+                const statusClass = incident.status ? incident.status.toLowerCase() : 'active';
+                const needsList = incident.needs && incident.needs.length > 0 
+                    ? incident.needs.map(need => `<span>${need}</span>`).join('')
+                    : '<span style="color: #9ca3af;">None specified</span>';
+                
+                return `
+                    <div class="incident-item" onclick="navigateToIncident('${incident._id}')" title="Click to navigate to this incident">
+                        <div class="incident-item-header">
+                            <div class="incident-item-type">${incident.type || 'Incident'}</div>
+                            <div class="incident-item-status ${statusClass}">${incident.status || 'Active'}</div>
+                        </div>
+                        ${incident.dispatched ? '<div class="incident-item-dispatched">✓ Dispatched</div>' : ''}
+                        <div class="incident-item-description">${incident.description || 'No description'}</div>
+                        ${incident.needs && incident.needs.length > 0 ? `<div class="incident-item-needs">${needsList}</div>` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Refresh incidents list from stored data
+        async function refreshIncidentsList() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/incident`);
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success && result.data) {
+                        updateIncidentsList(result.data);
+                    }
+                }
+            } catch (error) {
+                console.error('Error refreshing incidents list:', error);
+            }
+        }
+
+        // Navigate to incident location on map (global function for onclick)
+        window.navigateToIncident = function(incidentId) {
+            const incident = incidentData.get(incidentId);
+            if (!incident) {
+                // Try to get from API if not in local data
+                fetch(`${API_BASE_URL}/api/incident/${incidentId}`)
+                    .then(res => res.json())
+                    .then(result => {
+                        if (result.success && result.data) {
+                            goToIncidentLocation(result.data);
+                        } else {
+                            addActivityLog('Incident not found', 'error');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching incident:', error);
+                        addActivityLog('Failed to load incident', 'error');
+                    });
+                return;
+            }
+            
+            goToIncidentLocation(incident);
+        }
+
+        // Navigate map to incident location
+        async function goToIncidentLocation(incident) {
+            const coords = getLocationCoordinates(incident.location);
+            if (!coords) {
+                addActivityLog('Incident location not available', 'error');
+                return;
+            }
+
+            // Close any currently open InfoWindow
+            if (currentlyOpenInfoWindow) {
+                currentlyOpenInfoWindow.close();
+            }
+
+            // Center map on incident location
+            map.setCenter(coords);
+            map.setZoom(15);
+
+            // Open info window for the incident
+            const marker = markers.incidents.get(incident._id);
+            if (marker) {
+                const infoWindow = incidentInfoWindows.get(incident._id);
+                if (infoWindow) {
+                    // Fetch missions for this incident
+                    const missions = await fetchMissionsForIncident(incident._id);
+                    infoWindow.setContent(createIncidentInfoWindowContent(incident, missions));
+                    infoWindow.open(map, marker);
+                    currentlyOpenInfoWindow = infoWindow;
+                    
+                    // Set up dispatch button if needed
+                    google.maps.event.addListener(infoWindow, 'domready', () => {
+                        const dispatchBtn = document.getElementById(`dispatchBtn_${incident._id}`);
+                        if (dispatchBtn) {
+                            const newBtn = dispatchBtn.cloneNode(true);
+                            dispatchBtn.parentNode.replaceChild(newBtn, dispatchBtn);
+                            newBtn.addEventListener('click', (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                dispatchIncident(incident._id);
+                            });
+                        }
+                    });
+                }
+            }
+
+            addActivityLog(`Navigated to: ${incident.type || 'Incident'}`, 'info');
+        };
 
         function updateWSStatus(connected) {
             const statusDot = document.getElementById('wsStatus');
