@@ -8,10 +8,10 @@ services:
     container_name: disaster-hub-backend
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "3003:3003"
     environment:
       - NODE_ENV=development
-      - PORT=3000
+      - PORT=3003
       - MONGODB_URI=${MONGODB_URI}
     env_file:
       - .env
