@@ -1,6 +1,7 @@
 import { getCollection } from '../services/database.js';
 import { broadcastToClients } from '../services/websocket.js';
 import { parseIncidentDescription } from '../services/aiService.js';
+import { handleIncidentDispatch } from '../services/missionAgent.js';
 import { ObjectId } from 'mongodb';
 
 const collection = getCollection('incident');
@@ -83,6 +84,12 @@ export const createIncident = async (req, res) => {
       data: newIncident
     });
     
+    // Send reload message to refresh all data
+    broadcastToClients({
+      type: 'reload',
+      reload: true
+    });
+    
     res.status(201).json({
       success: true,
       data: newIncident
@@ -97,7 +104,7 @@ export const createIncident = async (req, res) => {
 
 export const createIncidentFromText = async (req, res) => {
   try {
-    const { description } = req.body;
+    const { description, userLocation } = req.body;
     
     if (!description || typeof description !== 'string' || description.trim().length === 0) {
       return res.status(400).json({
@@ -107,9 +114,12 @@ export const createIncidentFromText = async (req, res) => {
     }
 
     console.log('[CreateIncidentFromText] Parsing description with AI...');
+    if (userLocation) {
+      console.log('[CreateIncidentFromText] User location provided:', userLocation);
+    }
     
     // Parse the natural language description using AI
-    const incidentData = await parseIncidentDescription(description);
+    const incidentData = await parseIncidentDescription(description, userLocation);
     
     console.log('[CreateIncidentFromText] Parsed incident data:', JSON.stringify(incidentData, null, 2));
     
@@ -121,6 +131,12 @@ export const createIncidentFromText = async (req, res) => {
     broadcastToClients({
       type: 'incident_created',
       data: newIncident
+    });
+    
+    // Send reload message to refresh all data
+    broadcastToClients({
+      type: 'reload',
+      reload: true
     });
     
     res.status(201).json({
@@ -144,6 +160,17 @@ export const updateIncident = async (req, res) => {
     
     const objectId = convertToObjectId(id);
     console.log(`[UpdateIncident] Converted ID: ${objectId} (type: ${typeof objectId}, isObjectId: ${objectId instanceof ObjectId})`);
+    
+    // Get previous state to check if incident was just dispatched
+    let previousIncident = null;
+    try {
+      previousIncident = await collection.findOne({ _id: objectId });
+      if (!previousIncident && objectId !== id) {
+        previousIncident = await collection.findOne({ _id: id });
+      }
+    } catch (error) {
+      console.warn('[UpdateIncident] Could not fetch previous incident state:', error);
+    }
     
     let updatedIncident = null;
     
@@ -214,12 +241,40 @@ export const updateIncident = async (req, res) => {
       data: updatedIncident
     });
     
-    // If dispatched field was set to true, send reload message
+    // If dispatched field was set to true, trigger mission creation
     if (req.body.dispatched === true) {
+      console.log('[UpdateIncident] ========================================');
+      console.log('[UpdateIncident] Dispatch detected! req.body.dispatched === true');
+      console.log('[UpdateIncident] Updated incident dispatched status:', updatedIncident.dispatched);
+      console.log('[UpdateIncident] Previous incident dispatched status:', previousIncident?.dispatched);
+      console.log('[UpdateIncident] Calling handleIncidentDispatch...');
+      
+      try {
+        // Create missions for the dispatched incident
+        const missions = await handleIncidentDispatch(updatedIncident, previousIncident);
+        console.log(`[UpdateIncident] ✅ handleIncidentDispatch returned ${missions.length} missions`);
+        if (missions.length > 0) {
+          console.log('[UpdateIncident] Mission IDs:', missions.map(m => m._id));
+        } else {
+          console.log('[UpdateIncident] ⚠️  No missions were created');
+        }
+      } catch (error) {
+        console.error('[UpdateIncident] ❌ ERROR creating missions:', error);
+        console.error('[UpdateIncident] Error message:', error.message);
+        console.error('[UpdateIncident] Error stack:', error.stack);
+        // Don't fail the request if mission creation fails
+      }
+      
+      // Send reload message to refresh all data
+      console.log('[UpdateIncident] Broadcasting reload message...');
       broadcastToClients({
         type: 'reload',
         reload: true
       });
+      console.log('[UpdateIncident] Reload message broadcast complete');
+      console.log('[UpdateIncident] ========================================');
+    } else {
+      console.log('[UpdateIncident] Dispatch not detected. req.body.dispatched:', req.body.dispatched);
     }
     
     res.json({

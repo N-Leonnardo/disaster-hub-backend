@@ -8,6 +8,7 @@ import volunteerRoutes from './routes/volunteerRoutes.js';
 import incidentRoutes from './routes/incidentRoutes.js';
 import missionRoutes from './routes/missionRoutes.js';
 import { setWebSocketServer } from './services/websocket.js';
+import { startMissionAgent, stopMissionAgent } from './services/missionAgent.js';
 
 const app = express();
 const server = createServer(app);
@@ -154,6 +155,15 @@ async function connectWithRetry() {
     dbClient = await connectToMongoDB();
     console.log('✅ MongoDB connection established successfully!');
     retryCount = 0; // Reset retry count on success
+    
+    // Start the background mission agent after database connection is established
+    // Check every 5 minutes (300000 ms) for incidents that need missions
+    const agentInterval = process.env.MISSION_AGENT_INTERVAL_MS 
+      ? parseInt(process.env.MISSION_AGENT_INTERVAL_MS, 10) 
+      : 5 * 60 * 1000; // Default: 5 minutes
+    
+    console.log(`[Server] Starting background mission agent (interval: ${agentInterval / 1000 / 60} minutes)`);
+    startMissionAgent(agentInterval);
   } catch (error) {
     retryCount++;
     if (retryCount < MAX_RETRIES) {
@@ -289,6 +299,10 @@ server.listen(PORT, '0.0.0.0', () => {
 process.on('SIGTERM', async () => {
   const timestamp = new Date().toISOString();
   console.log(`[Server] [${timestamp}] SIGTERM signal received: closing HTTP server`);
+  
+  // Stop the background mission agent
+  stopMissionAgent();
+  
   console.log(`[WebSocket] Closing WebSocket server...`);
   console.log(`[WebSocket] Active connections: ${wss.clients.size}`);
   
@@ -312,6 +326,10 @@ process.on('SIGTERM', async () => {
 process.on('SIGINT', async () => {
   const timestamp = new Date().toISOString();
   console.log(`[Server] [${timestamp}] SIGINT signal received: closing HTTP server`);
+  
+  // Stop the background mission agent
+  stopMissionAgent();
+  
   console.log(`[WebSocket] Closing WebSocket server...`);
   console.log(`[WebSocket] Active connections: ${wss.clients.size}`);
   
