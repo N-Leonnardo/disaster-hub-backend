@@ -104,7 +104,7 @@ export const createIncident = async (req, res) => {
 
 export const createIncidentFromText = async (req, res) => {
   try {
-    const { description } = req.body;
+    const { description, userLocation = null } = req.body;
 
     if (!description || typeof description !== 'string' || description.trim().length === 0) {
       return res.status(400).json({
